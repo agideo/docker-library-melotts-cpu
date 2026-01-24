@@ -10,10 +10,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 # ==================== 配置区 ====================
 
-MAX_TEXT_LENGTH = 500
-THREAD_POOL_SIZE = 4
-ENABLE_CACHE = False  # True: 缓存文件, False: 立即删除
-CACHE_DIR = "/mnt/tts_cache"
+MAX_TEXT_LENGTH = int(os.environ.get("MAX_TEXT_LENGTH", "500"))
+THREAD_POOL_SIZE = int(os.environ.get("THREAD_POOL_SIZE", "4"))
+ENABLE_CACHE = os.environ.get("ENABLE_CACHE", "false").lower() in ("true", "1", "yes")
+CACHE_DIR = os.environ.get("CACHE_DIR", "/mnt/tts_cache")
 
 # ==================== 全局状态 ====================
 
