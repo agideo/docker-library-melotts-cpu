@@ -12,6 +12,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 MAX_TEXT_LENGTH = 500
 THREAD_POOL_SIZE = 4
+ENABLE_CACHE = False  # True: 缓存文件, False: 立即删除
+CACHE_DIR = "/mnt/tts_cache"
 
 # ==================== 全局状态 ====================
 
@@ -44,9 +46,15 @@ def generate_audio_file(text: str, speed: float) -> str:
     """生成语音文件"""
     model = get_model()
     content_hash = hashlib.md5(f"{text}_{speed}".encode()).hexdigest()
-    output_file = f"/tmp/tts_{content_hash}.wav"
-    speaker_id = model.hps.data.spk2id['ZH']
 
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    output_file = os.path.join(CACHE_DIR, f"tts_{content_hash}.wav")
+
+    if os.path.exists(output_file):
+        print(f"[缓存] 使用已有文件: {output_file}", file=sys.stderr)
+        return output_file
+
+    speaker_id = model.hps.data.spk2id['ZH']
     model.tts_to_file(
         text=text,
         speaker_id=speaker_id,
@@ -113,10 +121,13 @@ async def text_to_speech(request: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"语音生成失败: {str(e)}")
 
+    # 根据配置决定是否添加删除任务
+    background = None if ENABLE_CACHE else BackgroundTask(delete_file, audio_file)
+
     return FileResponse(
         path=audio_file,
         media_type="audio/wav",
-        background=BackgroundTask(delete_file, audio_file)
+        background=background
     )
 
 
@@ -127,7 +138,9 @@ def health_check():
         "status": "ok",
         "model_loaded": tts_model is not None,
         "device": "cpu",
-        "thread_pool_size": THREAD_POOL_SIZE
+        "thread_pool_size": THREAD_POOL_SIZE,
+        "cache_enabled": ENABLE_CACHE,
+        "cache_dir": CACHE_DIR
     }
 
 
@@ -138,5 +151,6 @@ def root():
         "service": "MeloTTS 中文语音服务",
         "version": "1.0",
         "device": "cpu",
+        "cache_enabled": ENABLE_CACHE,
         "usage": 'POST /tts with JSON: {"content": "你好世界", "speed": 1.0}'
     }
